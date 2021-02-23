@@ -8,10 +8,6 @@ defmodule ModsynthGui.Scene.Home do
   import Scenic.Primitives
   import Scenic.Components
 
-  def verify(scene) when is_atom(scene), do: {:ok, scene}
-  def verify({scene, _} = data) when is_atom(scene), do: {:ok, data}
-  def verify(_), do: :invalid_data
-
   @text_size 24
   #@text_field text_field_spec("", id: :text, width: 240, hint: "Type here...", t: {200, 160})
   # ============================================================================
@@ -26,34 +22,42 @@ defmodule ModsynthGui.Scene.Home do
 
     # show the version of scenic and the glfw driver
 
-    quads = [
-      rrect_spec(
-        {50, 60, 6},
-        fill: :green,
-        stroke: {6, :yellow},
-        t: {85, 0}
-      )
-    ]
 
     graph =
       Graph.build(styles: styles, font_size: @text_size)
       |> add_specs_to_graph([
-      # group_spec(quads, t: {250, 330}),
-      text_field_spec("", id: :text_id, width: 200, hint: "Enter filename", t: {200, 160}),
-      # slider_spec({{0, 100}, 0}, id: :num_slider, t: {0, 100}),
-      rect_spec({width, height})
+      text_field_spec("", id: :text_id, width: 200, hint: "Enter filename", filter: :all, t: {10, 10}),
       ])
 
     {:ok, graph, push: graph}
   end
 
-  def handle_input({:value_changed, _id, value}, _context, state) do
-    Logger.info("Received value change: #{value}")
-    {:noreply, state}
+  def filter_event({:value_changed, id, value}, _context, graph) do
+    graph = if String.ends_with?(value, " ") do
+      do_graph(graph, String.slice(value, 0..-2))
+    else
+      graph
+    end
+    {:cont, {:value_changed, id, value}, graph, push: graph}
   end
 
-  def handle_input(_event, _context, state) do
-    # Logger.info("Received value change: #{value}")
+  def do_graph(graph, name) do
+      filename = Path.join("../sc_em/examples", name)
+      Logger.info("filename is #{filename}")
+      {:ok, d} = File.read(filename)
+      {:ok, ms} = Jason.decode(d)
+      add_specs_to_graph(graph, List.flatten(Enum.map(ms["nodes"], fn node ->
+            [rrect_spec({100, 100, 4}, fill: :green, stroke: {4, :yellow}, t: {node["x"], node["y"]}),
+            text_spec(node["name"], t: {node["x"] + 10, node["y"] + 30})] end)))
+  end
+
+  def filter_event({:click, id}, _context, graph) do
+    Logger.info("button clicked: #{id}")
+    {:cont, {:click, id}, graph, push: graph}
+  end
+
+  def handle_input(event, _context, state) do
+    Logger.info("Received value change: #{inspect(event)}")
     {:noreply, state}
   end
 end
