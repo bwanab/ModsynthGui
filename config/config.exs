@@ -5,16 +5,21 @@ use Mix.Config
 # Configure the main viewport for the Scenic application
 config :modsynth_gui, :viewport, %{
   name: :main_viewport,
-  size: {700, 600},
+  size: {1000, 600},
   default_scene: {ModsynthGui.Scene.Home, nil},
   drivers: [
     %{
       module: Scenic.Driver.Glfw,
       name: :glfw,
-      opts: [resizeable: false, title: "modsynth_gui"]
+      opts: [resizeable: true, title: "modsynth_gui"]
     }
   ]
 }
+
+config :logger,
+  level: :info,
+  format: "[$level] $messge $metadata\n",
+  metadata: [:error_code, :file, :line]
 
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment
