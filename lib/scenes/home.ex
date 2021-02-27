@@ -33,6 +33,11 @@ defmodule ModsynthGui.Scene.Home do
     {:ok, %{graph: graph, size: {width, height}, id: nil}, push: graph}
   end
 
+  ####################################################################
+  # scenic callbacks
+  ####################################################################
+
+
   def filter_event({:value_changed, id, value}, _context, state) do
     state = if String.ends_with?(value, " ") do
       do_graph(state, String.slice(value, 0..-2))
@@ -52,8 +57,8 @@ defmodule ModsynthGui.Scene.Home do
     {:cont, {:clicked, id}, %{graph: graph, size: size, id: current_id}, push: graph}
   end
 
-  def handle_input(event, _context, state) do
-    Logger.info("Received value change: #{inspect(event)}")
+  def handle_input(_event, _context, state) do
+    # Logger.info("Received value change: #{inspect(event)}")
     {:noreply, state}
   end
 
@@ -90,6 +95,12 @@ defmodule ModsynthGui.Scene.Home do
 
   end
 
+  @doc """
+  since nodes are created in different paths, they often collide in space. This function has a simple
+  scheme to reposition nodes that are in conflict with previously placed nodes.
+
+  It simply moves the new node up until no more conflict.
+  """
   def recompute_position_if_needed(acc, x, y, id) do
     if Map.has_key?(acc, {x, y}) do
       recompute_position_if_needed(acc, x, y - @node_height * 1.5, id)
@@ -115,12 +126,31 @@ defmodule ModsynthGui.Scene.Home do
     %{graph: add_specs_to_graph(graph, node_specs ++ connection_specs), size: {width, height}, id: all_id}
   end
 
+  def get_node_connection_points(connections, from_or_to) do
+    Enum.reduce(connections, %{},
+      fn c, acc ->
+        {id, param} = case from_or_to do
+                        :from -> {c.from_node_param.node_id, c.from_node_param.param_name}
+                        :to -> {c.to_node_param.node_id, c.to_node_param.param_name}
+                      end
+        Map.put(acc, id, [param|Map.get(acc, id, [])])
+      end)
+  end
+
   def get_connections(connections, node_pos_map, all_id) do
+    from_points = get_node_connection_points(connections, :from)
+    to_points = get_node_connection_points(connections, :to)
     Enum.map(connections, fn c ->
-      {from_node_x, from_node_y} = node_pos_map[c.from_node_param.node_id]
-      {to_node_x, to_node_y} = node_pos_map[c.to_node_param.node_id]
-      line_spec({{from_node_x + @node_width, from_node_y + 50},
-                 {to_node_x, to_node_y + 50}},
+      from_id = c.from_node_param.node_id
+      to_id = c.to_node_param.node_id
+      from_param = c.from_node_param.param_name
+      to_param = c.to_node_param.param_name
+      from_index = Enum.find_index(from_points[from_id], fn x -> x == from_param end)
+      to_index = Enum.find_index(to_points[to_id], fn x -> x == to_param end)
+      {from_node_x, from_node_y} = node_pos_map[from_id]
+      {to_node_x, to_node_y} = node_pos_map[to_id]
+      line_spec({{from_node_x + @node_width, from_node_y + 20 + 40 * from_index},
+                 {to_node_x, to_node_y + 20 + 40 * to_index}},
         stroke: {4, :white}, cap: :round, id: all_id)
       # path_spec([
       #   :begin,
