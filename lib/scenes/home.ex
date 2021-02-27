@@ -27,9 +27,10 @@ defmodule ModsynthGui.Scene.Home do
       Graph.build(styles: styles, font_size: @text_size)
       |> add_specs_to_graph([
       text_field_spec("", id: :text_id, width: 200, hint: "Enter filename", filter: :all, t: {10, 10}),
+      button_spec("clear", id: :clear_button, t: {210, 10})
       ])
 
-    {:ok, %{graph: graph, size: {width, height}}, push: graph}
+    {:ok, %{graph: graph, size: {width, height}, id: nil}, push: graph}
   end
 
   def filter_event({:value_changed, id, value}, _context, state) do
@@ -39,6 +40,16 @@ defmodule ModsynthGui.Scene.Home do
       state
     end
     {:cont, {:value_changed, id, value}, state, push: state.graph}
+  end
+
+  def filter_event({:click, id}, _context, %{graph: graph, size: size, id: current_id}) do
+    graph = if current_id != nil do
+      Logger.info("delete old graph")
+      Graph.delete(graph, current_id)
+    else
+      graph
+    end
+    {:cont, {:clicked, id}, %{graph: graph, size: size, id: current_id}, push: graph}
   end
 
   def handle_input(event, _context, state) do
@@ -87,27 +98,30 @@ defmodule ModsynthGui.Scene.Home do
     end
   end
 
-  def do_graph(%{graph: graph, size: {width, height}}, name) do
-      filename = Path.join("../sc_em/examples", name <> ".json")
-      {nodes, connections} = Modsynth.look(filename)
-      node_pos_map = reorder_nodes(connections, Map.values(nodes), width, height)
-      |> Enum.reduce(%{}, fn {id, {x, y}}, acc -> recompute_position_if_needed(acc, x, y, id) end)
-      |> Enum.map(fn {{x, y}, id} -> {id, {x, y}} end)
-      |> Enum.into(%{})
-      connection_specs = get_connections(connections, node_pos_map)
-      node_specs = Enum.map(node_pos_map, fn {node_id, {x_pos, y_pos}} ->
-        node = nodes[node_id]
-        [rrect_spec({@node_width, @node_height, 4}, fill: :green, stroke: {4, :yellow}, t: {x_pos, y_pos}),
-         text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + 30})] end)
-      |> List.flatten
-      %{graph: add_specs_to_graph(graph, node_specs ++ connection_specs), size: {width, height}}
+  def do_graph(%{graph: graph, size: {width, height}, id: _current_id}, name) do
+    all_id = String.to_atom(name)
+    filename = Path.join("../sc_em/examples", name <> ".json")
+    {nodes, connections} = Modsynth.look(filename)
+    node_pos_map = reorder_nodes(connections, Map.values(nodes), width, height)
+    |> Enum.reduce(%{}, fn {id, {x, y}}, acc -> recompute_position_if_needed(acc, x, y, id) end)
+    |> Enum.map(fn {{x, y}, id} -> {id, {x, y}} end)
+    |> Enum.into(%{})
+    connection_specs = get_connections(connections, node_pos_map, all_id)
+    node_specs = Enum.map(node_pos_map, fn {node_id, {x_pos, y_pos}} ->
+      node = nodes[node_id]
+      [rrect_spec({@node_width, @node_height, 4}, fill: :green, stroke: {4, :yellow}, t: {x_pos, y_pos}, id: all_id),
+       text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + 30}, id: all_id)] end)
+    |> List.flatten
+    %{graph: add_specs_to_graph(graph, node_specs ++ connection_specs), size: {width, height}, id: all_id}
   end
 
-  def get_connections(connections, node_pos_map) do
+  def get_connections(connections, node_pos_map, all_id) do
     Enum.map(connections, fn c ->
       {from_node_x, from_node_y} = node_pos_map[c.from_node_param.node_id]
       {to_node_x, to_node_y} = node_pos_map[c.to_node_param.node_id]
-      line_spec({{from_node_x + @node_width, from_node_y + 50}, {to_node_x, to_node_y + 50}}, stroke: {4, :white}, cap: :round)
+      line_spec({{from_node_x + @node_width, from_node_y + 50},
+                 {to_node_x, to_node_y + 50}},
+        stroke: {4, :white}, cap: :round, id: all_id)
       # path_spec([
       #   :begin,
       #   {:move_to, from_node["x"] + 100, from_node["y"] + 50},
