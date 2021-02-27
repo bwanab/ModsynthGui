@@ -5,7 +5,7 @@ use Mix.Config
 # Configure the main viewport for the Scenic application
 config :modsynth_gui, :viewport, %{
   name: :main_viewport,
-  size: {1000, 600},
+  size: {1200, 800},
   default_scene: {ModsynthGui.Scene.Home, nil},
   drivers: [
     %{
@@ -15,6 +15,13 @@ config :modsynth_gui, :viewport, %{
     }
   ]
 }
+
+config :sc_em,
+  port: 57110,
+  ip: {192,168,4,39},
+  remote_synth_dir: "/home/bill/Dropbox/music/supercollider/synthdefs/modsynth",
+  local_synth_dir: "/Users/williamallen/Dropbox/music/supercollider/synthdefs/modsynth"
+
 
 config :logger,
   level: :info,
