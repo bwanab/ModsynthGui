@@ -16,3 +16,7 @@ Clone the repository for now.
 To use, it requires the  [[https://github.com/bwanab/sc_em][Modsynth]] project to be present.
 
 * Usage
+
+iex -S mix
+
+The filename box allows one to put in a name. Currently, it only looks in the sc_em examples directory. It assumes the .json for the filename, so that isn't needed. It's dorky, but the way to launch the file is to end with a space. That tells it to load the file and draw it.
