@@ -117,11 +117,11 @@ defmodule ModsynthGui.Scene.Home do
     |> Enum.reduce(%{}, fn {id, {x, y}}, acc -> recompute_position_if_needed(acc, x, y, id) end)
     |> Enum.map(fn {{x, y}, id} -> {id, {x, y}} end)
     |> Enum.into(%{})
-    connection_specs = get_connections(connections, node_pos_map, all_id)
+    connection_specs = get_connections(connections, node_pos_map, all_id) |> List.flatten
     node_specs = Enum.map(node_pos_map, fn {node_id, {x_pos, y_pos}} ->
       node = nodes[node_id]
       [rrect_spec({@node_width, @node_height, 4}, fill: :green, stroke: {4, :yellow}, t: {x_pos, y_pos}, id: all_id),
-       text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + 30}, id: all_id)] end)
+       text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + 50}, id: all_id)] end)
     |> List.flatten
     %{graph: add_specs_to_graph(graph, node_specs ++ connection_specs), size: {width, height}, id: all_id}
   end
@@ -149,9 +149,11 @@ defmodule ModsynthGui.Scene.Home do
       to_index = Enum.find_index(to_points[to_id], fn x -> x == to_param end)
       {from_node_x, from_node_y} = node_pos_map[from_id]
       {to_node_x, to_node_y} = node_pos_map[to_id]
-      line_spec({{from_node_x + @node_width, from_node_y + 20 + 40 * from_index},
+      [line_spec({{from_node_x + @node_width, from_node_y + 20 + 40 * from_index},
                  {to_node_x, to_node_y + 20 + 40 * to_index}},
-        stroke: {4, :white}, cap: :round, id: all_id)
+          stroke: {4, :white}, cap: :round, id: all_id),
+       text_spec(from_param, t: {from_node_x + @node_width, from_node_y + 20 + 40 * from_index}),
+       text_spec(to_param, t: {to_node_x, to_node_y + 20 + 40 * to_index})]
       # path_spec([
       #   :begin,
       #   {:move_to, from_node["x"] + 100, from_node["y"] + 50},
