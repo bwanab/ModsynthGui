@@ -9,6 +9,8 @@ A simple display for [[https://github.com/bwanab/sc_em][Modsynth]] circuits. The
 #+NAME:   fig:example
 [[./example_circuit.png]]
 
+For the GUI, it is using the [[https://github.com/boydm/scenic][Scenic]] library.
+
 * Installation
 
 Clone the repository for now.
