@@ -21,4 +21,4 @@ To use, it requires the  [[https://github.com/bwanab/sc_em][Modsynth]] project t
 
 iex -S mix
 
-The filename box allows one to put in a name. Currently, it only looks in the sc_em examples directory. It assumes the .json for the filename, so that isn't needed. It's dorky, but the way to launch the file is to end with a space. That tells it to load the file and draw it.
+The filename box allows one to put in a name. Currently, it only looks in the sc_em examples directory. It assumes the .json for the filename, so that isn't needed. Hit the GO button to draw the graph. Hit the clear button to clear the graph to draw another.

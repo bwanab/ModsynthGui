@@ -1,3 +1,16 @@
+defmodule ModsynthGui.State do
+  defstruct  graph: nil,
+    size: {1,1},
+    id: nil,
+    filename: ""
+
+  @type t :: %__MODULE__{graph: Scenic.Graph,
+                         size: tuple,
+                         id: atom,
+                         filename: String.t
+  }
+end
+
 defmodule ModsynthGui.Scene.Home do
   use Scenic.Scene
   require Logger
@@ -8,6 +21,7 @@ defmodule ModsynthGui.Scene.Home do
 
   alias Scenic.Graph
   alias Scenic.ViewPort
+  alias ModsynthGui.State
 
   import Scenic.Primitives
   import Scenic.Components
@@ -26,10 +40,11 @@ defmodule ModsynthGui.Scene.Home do
       Graph.build(styles: styles, font_size: @text_size, clear_color: :dark_slate_grey)
       |> add_specs_to_graph([
       text_field_spec("", id: :text_id, width: 200, hint: "Enter filename", filter: :all, t: {10, 10}),
-      button_spec("clear", id: :clear_button, t: {210, 10})
+      button_spec("go", id: :go_button, t: {215, 10}),
+      button_spec("clear", id: :clear_button, t: {270, 10})
       ])
 
-    {:ok, %{graph: graph, size: {width, height}, id: nil}, push: graph}
+    {:ok, %State{graph: graph, size: {width, height}}, push: graph}
   end
 
   ####################################################################
@@ -38,22 +53,21 @@ defmodule ModsynthGui.Scene.Home do
 
 
   def filter_event({:value_changed, id, value}, _context, state) do
-    state = if String.ends_with?(value, " ") do
-      do_graph(state, String.slice(value, 0..-2))
-    else
-      state
-    end
-    {:cont, {:value_changed, id, value}, state, push: state.graph}
+    {:cont, {:value_changed, id, value}, %{state | filename: value}, push: state.graph}
   end
 
-  def filter_event({:click, id}, _context, %{graph: graph, size: size, id: current_id}) do
-    graph = if current_id != nil do
-      Logger.info("delete old graph")
-      Graph.delete(graph, current_id)
-    else
-      graph
-    end
-    {:cont, {:clicked, id}, %{graph: graph, size: size, id: current_id}, push: graph}
+  def filter_event({:click, id}, _context, state) do
+    state = case id do
+              :go_button -> do_graph(state)
+              :clear_button ->
+                if state.id != nil do
+                  Logger.info("delete old graph")
+                  %{state | graph: Graph.delete(state.graph, state.id)}
+                else
+                  state
+                end
+            end
+    {:cont, {:clicked, id}, state, push: state.graph}
   end
 
   def handle_input(_event, _context, state) do
@@ -108,26 +122,31 @@ defmodule ModsynthGui.Scene.Home do
     end
   end
 
-  def do_graph(%{graph: graph, size: {width, height}, id: _current_id}, name) do
+  def do_graph(%State{graph: graph, size: {width, height}, filename: name} = state) do
     all_id = String.to_atom(name)
     filename = Path.join("../sc_em/examples", name <> ".json")
-    {nodes, connections} = Modsynth.look(filename)
-    node_pos_map = reorder_nodes(connections, Map.values(nodes), width, height)
-    |> Enum.reduce(%{}, fn {id, {x, y}}, acc -> recompute_position_if_needed(acc, x, y, id) end)
-    |> Enum.map(fn {{x, y}, id} -> {id, {x, y}} end)
-    |> Enum.into(%{})
-    connection_specs = get_connections(connections, node_pos_map, all_id) |> List.flatten
-    node_specs = Enum.map(node_pos_map, fn {node_id, {x_pos, y_pos}} ->
-      node = nodes[node_id]
-      fill_color = case node.control do
-                     :gain -> :golden_rod
-                     :note -> :dark_orchid
-                     _ -> :grey
-                   end
-      [rrect_spec({@node_width, @node_height, 4}, fill: fill_color, stroke: {2, :yellow}, t: {x_pos, y_pos}, id: all_id),
-       text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + @node_height - 10}, id: all_id)] end)
-    |> List.flatten
-    %{graph: add_specs_to_graph(graph, node_specs ++ connection_specs), size: {width, height}, id: all_id}
+    case Modsynth.look(filename) do
+      {:error, reason} ->
+        Logger.error("filename not valid: #{reason}")
+        state
+      {nodes, connections} ->
+        node_pos_map = reorder_nodes(connections, Map.values(nodes), width, height)
+        |> Enum.reduce(%{}, fn {id, {x, y}}, acc -> recompute_position_if_needed(acc, x, y, id) end)
+        |> Enum.map(fn {{x, y}, id} -> {id, {x, y}} end)
+        |> Enum.into(%{})
+        connection_specs = get_connections(connections, node_pos_map, all_id) |> List.flatten
+        node_specs = Enum.map(node_pos_map, fn {node_id, {x_pos, y_pos}} ->
+          node = nodes[node_id]
+          fill_color = case node.control do
+                         :gain -> :golden_rod
+                         :note -> :dark_orchid
+                         _ -> :grey
+                       end
+          [rrect_spec({@node_width, @node_height, 4}, fill: fill_color, stroke: {2, :yellow}, t: {x_pos, y_pos}, id: all_id),
+           text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + @node_height - 10}, id: all_id)] end)
+           |> List.flatten
+        %{state | graph: add_specs_to_graph(graph, node_specs ++ connection_specs), id: all_id}
+    end
   end
 
   def get_node_connection_points(connections, from_or_to) do
