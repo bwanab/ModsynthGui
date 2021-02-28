@@ -1,0 +1,18 @@
+#+TITLE: ModsynthGui
+
+
+* ModsynthGui
+
+A simple display for [[https://github.com/bwanab/sc_em][Modsynth]] circuits. The intent is to build this out so that it is a full fledged modular synth editor, but for now, display only is helpful.
+
+#+CAPTION: An example circuit.
+#+NAME:   fig:example
+[[./example_circuit.png]]
+
+* Installation
+
+Clone the repository for now.
+
+To use, it requires the  [[https://github.com/bwanab/sc_em][Modsynth]] project to be present.
+
+* Usage
