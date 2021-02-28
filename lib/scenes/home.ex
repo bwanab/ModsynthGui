@@ -15,7 +15,6 @@ defmodule ModsynthGui.Scene.Home do
   @text_size 24
   @node_height 100
   @node_width 120
-  #@text_field text_field_spec("", id: :text, width: 240, hint: "Type here...", t: {200, 160})
   # ============================================================================
   # setup
 
@@ -24,7 +23,7 @@ defmodule ModsynthGui.Scene.Home do
     styles = opts[:styles] || %{}
     {:ok, %ViewPort.Status{size: {width, height}}} = ViewPort.info(opts[:viewport])
     graph =
-      Graph.build(styles: styles, font_size: @text_size)
+      Graph.build(styles: styles, font_size: @text_size, clear_color: :dark_slate_grey)
       |> add_specs_to_graph([
       text_field_spec("", id: :text_id, width: 200, hint: "Enter filename", filter: :all, t: {10, 10}),
       button_spec("clear", id: :clear_button, t: {210, 10})
@@ -120,8 +119,13 @@ defmodule ModsynthGui.Scene.Home do
     connection_specs = get_connections(connections, node_pos_map, all_id) |> List.flatten
     node_specs = Enum.map(node_pos_map, fn {node_id, {x_pos, y_pos}} ->
       node = nodes[node_id]
-      [rrect_spec({@node_width, @node_height, 4}, fill: :green, stroke: {4, :yellow}, t: {x_pos, y_pos}, id: all_id),
-       text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + 50}, id: all_id)] end)
+      fill_color = case node.control do
+                     :gain -> :golden_rod
+                     :note -> :dark_orchid
+                     _ -> :grey
+                   end
+      [rrect_spec({@node_width, @node_height, 4}, fill: fill_color, stroke: {2, :yellow}, t: {x_pos, y_pos}, id: all_id),
+       text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + @node_height - 10}, id: all_id)] end)
     |> List.flatten
     %{graph: add_specs_to_graph(graph, node_specs ++ connection_specs), size: {width, height}, id: all_id}
   end
@@ -151,9 +155,15 @@ defmodule ModsynthGui.Scene.Home do
       {to_node_x, to_node_y} = node_pos_map[to_id]
       [line_spec({{from_node_x + @node_width, from_node_y + 20 + 40 * from_index},
                  {to_node_x, to_node_y + 20 + 40 * to_index}},
-          stroke: {4, :white}, cap: :round, id: all_id),
-       text_spec(from_param, t: {from_node_x + @node_width, from_node_y + 20 + 40 * from_index}),
-       text_spec(to_param, t: {to_node_x, to_node_y + 20 + 40 * to_index})]
+          stroke: {2, :beige}, cap: :round, id: all_id),
+       text_spec(from_param, fill: :dark_sea_green,
+         t: {from_node_x + @node_width - String.length(from_param) * 12, from_node_y + 20 + 40 * from_index}, id: all_id),
+       # rrect_spec({String.length(from_param), 20, 2}, fill: :blue, stroke: {2, :white},
+       #   t: {from_node_x + @node_width, from_node_y + 20 + 40 * from_index}, id: all_id),
+       text_spec(to_param, fill: :blue, t: {to_node_x + 10, to_node_y + 20 + 40 * to_index}, id: all_id),
+       # rrect_spec({String.length(to_param), 20, 2}, fill: :blue, stroke: {2, :white},
+       #   t: {to_node_x, to_node_y + 20 + 40 * to_index}, id: all_id)
+       ]
       # path_spec([
       #   :begin,
       #   {:move_to, from_node["x"] + 100, from_node["y"] + 50},
