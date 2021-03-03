@@ -40,8 +40,11 @@ defmodule ModsynthGui.Scene.Home do
       Graph.build(styles: styles, font_size: @text_size, clear_color: :dark_slate_grey)
       |> add_specs_to_graph([
       text_field_spec("", id: :text_id, width: 200, hint: "Enter filename", filter: :all, t: {10, 10}),
-      button_spec("go", id: :go_button, t: {215, 10}),
-      button_spec("clear", id: :clear_button, t: {270, 10})
+      button_spec("load", id: :load_button, t: {215, 10}),
+      button_spec("clear", id: :clear_button, t: {280, 10}),
+      button_spec("rand", id: :rand_button, t: {350, 10}),
+      button_spec("play", id: :play_button, t: {410, 10}),
+      button_spec("stop", id: :stop_button, t: {470, 10}),
       ])
 
     {:ok, %State{graph: graph, size: {width, height}}, push: graph}
@@ -58,7 +61,7 @@ defmodule ModsynthGui.Scene.Home do
 
   def filter_event({:click, id}, _context, state) do
     state = case id do
-              :go_button -> do_graph(state)
+              :load_button -> do_graph(state)
               :clear_button ->
                 if state.id != nil do
                   Logger.info("delete old graph")
@@ -66,6 +69,17 @@ defmodule ModsynthGui.Scene.Home do
                 else
                   state
                 end
+              :rand_button ->
+                filename = Path.join("../sc_em/examples", state.filename <> ".json")
+                Modsynth.Rand.play(filename)
+                state
+              :play_button ->
+                filename = Path.join("../sc_em/examples", state.filename <> ".json")
+                Modsynth.play(filename)
+                state
+              :stop_button ->
+                Modsynth.Rand.stop_playing()
+                state
             end
     {:cont, {:clicked, id}, state, push: state.graph}
   end
