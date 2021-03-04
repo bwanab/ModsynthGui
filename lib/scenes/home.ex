@@ -42,12 +42,14 @@ defmodule ModsynthGui.Scene.Home do
     graph =
       Graph.build(styles: styles, font_size: @text_size, clear_color: :dark_slate_grey)
       |> add_specs_to_graph([
-      text_field_spec("", id: :text_id, width: 200, hint: "Enter filename", filter: :all, t: {10, 10}),
-      button_spec("load", id: :load_button, t: {215, 10}),
-      button_spec("clear", id: :clear_button, t: {280, 10}),
-      button_spec("rand", id: :rand_button, t: {350, 10}),
-      button_spec("play", id: :play_button, t: {410, 10}),
-      button_spec("stop", id: :stop_button, t: {470, 10}),
+      text_field_spec("", id: :filename_id, width: 200, hint: "Enter filename", filter: :all, t: {10, 10}),
+      dropdown_spec({
+        [{"load", :load_button},
+        {"clear", :clear_button},
+        {"rand", :rand_button},
+        {"play", :play_button},
+        {"stop", :stop_button}],
+          :load_button}, id: :dropdown, t: {200, 10})
       ])
 
     {:ok, %State{graph: graph, size: {width, height}}, push: graph}
@@ -58,11 +60,11 @@ defmodule ModsynthGui.Scene.Home do
   ####################################################################
 
 
-  def filter_event({:value_changed, id, value}, _context, state) do
-    {:cont, {:value_changed, id, value}, %{state | filename: value}, push: state.graph}
+  def filter_event({:value_changed, :filename_id, value} = event, _context, state) do
+    {:cont, event, %{state | filename: value}, push: state.graph}
   end
 
-  def filter_event({:click, id}, _context, state) do
+  def filter_event({:value_changed, :dropdown, id} = event, _context, state) do
     state = case id do
               :load_button -> do_graph(state)
               :clear_button ->
@@ -84,7 +86,7 @@ defmodule ModsynthGui.Scene.Home do
                 Modsynth.Rand.stop_playing()
                 state
             end
-    {:cont, {:clicked, id}, state, push: state.graph}
+    {:cont, event, state, push: state.graph}
   end
 
   def handle_input(_event, _context, state) do
