@@ -2,12 +2,15 @@ defmodule ModsynthGui.State do
   defstruct  graph: nil,
     size: {1,1},
     id: nil,
-    filename: ""
+    filename: "",
+    connections: nil
+
 
   @type t :: %__MODULE__{graph: Scenic.Graph,
                          size: tuple,
                          id: atom,
-                         filename: String.t
+                         filename: String.t,
+                         connections: list
   }
 end
 
@@ -71,12 +74,12 @@ defmodule ModsynthGui.Scene.Home do
                 end
               :rand_button ->
                 filename = Path.join("../sc_em/examples", state.filename <> ".json")
-                Modsynth.Rand.play(filename)
-                state
+                {_, _, connections} = Modsynth.Rand.play(filename)
+                %{state | connections: connections}
               :play_button ->
                 filename = Path.join("../sc_em/examples", state.filename <> ".json")
-                Modsynth.play(filename)
-                state
+                {_, connections} = Modsynth.play(filename)
+                %{state | connections: connections}
               :stop_button ->
                 Modsynth.Rand.stop_playing()
                 state
