@@ -1,5 +1,6 @@
 defmodule ModsynthGui.State do
   defstruct  graph: nil,
+    viewport: nil,
     size: {1,1},
     id: nil,
     filename: "",
@@ -7,6 +8,7 @@ defmodule ModsynthGui.State do
 
 
   @type t :: %__MODULE__{graph: Scenic.Graph,
+                         viewport: Scenic.ViewPort,
                          size: tuple,
                          id: atom,
                          filename: String.t,
@@ -25,6 +27,7 @@ defmodule ModsynthGui.Scene.Home do
   alias Scenic.Graph
   alias Scenic.ViewPort
   alias ModsynthGui.State
+  alias ModsynthGui.Component.Nav
 
   import Scenic.Primitives
   import Scenic.Components
@@ -32,6 +35,7 @@ defmodule ModsynthGui.Scene.Home do
   @text_size 24
   @node_height 100
   @node_width 120
+  @after_nav 60
   # ============================================================================
   # setup
 
@@ -42,17 +46,17 @@ defmodule ModsynthGui.Scene.Home do
     graph =
       Graph.build(styles: styles, font_size: @text_size, clear_color: :dark_slate_grey)
       |> add_specs_to_graph([
-      text_field_spec("", id: :filename_id, width: 200, hint: "Enter filename", filter: :all, t: {10, 10}),
+      text_field_spec("", id: :filename_id, width: 200, hint: "Enter filename", filter: :all, t: {10, @after_nav}),
       dropdown_spec({
         [{"load", :load_button},
         {"clear", :clear_button},
         {"rand", :rand_button},
         {"play", :play_button},
         {"stop", :stop_button}],
-          :load_button}, id: :dropdown, t: {200, 10})
-      ])
+          :load_button}, id: :dropdown, t: {200, @after_nav})])
+      |> Nav.add_to_graph(__MODULE__)
 
-    {:ok, %State{graph: graph, size: {width, height}}, push: graph}
+    {:ok, %State{graph: graph, size: {width, height}, viewport: opts[:viewport]}, push: graph}
   end
 
   ####################################################################
@@ -148,24 +152,29 @@ defmodule ModsynthGui.Scene.Home do
       {:error, reason} ->
         Logger.error("filename not valid: #{reason}")
         state
-      {nodes, connections} ->
-        node_pos_map = reorder_nodes(connections, Map.values(nodes), width, height)
-        |> Enum.reduce(%{}, fn {id, {x, y}}, acc -> recompute_position_if_needed(acc, x, y, id) end)
-        |> Enum.map(fn {{x, y}, id} -> {id, {x, y}} end)
-        |> Enum.into(%{})
-        connection_specs = get_connections(connections, node_pos_map, all_id) |> List.flatten
-        node_specs = Enum.map(node_pos_map, fn {node_id, {x_pos, y_pos}} ->
-          node = nodes[node_id]
-          fill_color = case node.control do
-                         :gain -> :golden_rod
-                         :note -> :dark_orchid
-                         _ -> :grey
-                       end
-          [rrect_spec({@node_width, @node_height, 4}, fill: fill_color, stroke: {2, :yellow}, t: {x_pos, y_pos}, id: all_id),
-           text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + @node_height - 10}, id: all_id)] end)
-           |> List.flatten
-        %{state | graph: add_specs_to_graph(graph, node_specs ++ connection_specs), id: all_id}
+      {nodes, connections, _} ->
+        {specs, all_id} = draw_graph(nodes, connections, width, height, all_id)
+        %{state | graph: {add_specs_to_graph(graph, specs), id: all_id}}
     end
+  end
+
+  def draw_graph(nodes, connections, width, height, all_id) do
+    node_pos_map = reorder_nodes(connections, Map.values(nodes), width, height)
+    |> Enum.reduce(%{}, fn {id, {x, y}}, acc -> recompute_position_if_needed(acc, x, y, id) end)
+    |> Enum.map(fn {{x, y}, id} -> {id, {x, y}} end)
+    |> Enum.into(%{})
+    connection_specs = get_connections(connections, node_pos_map, all_id) |> List.flatten
+    node_specs = Enum.map(node_pos_map, fn {node_id, {x_pos, y_pos}} ->
+      node = nodes[node_id]
+      fill_color = case node.control do
+                     :gain -> :golden_rod
+                     :note -> :dark_orchid
+                     _ -> :grey
+                   end
+      [rrect_spec({@node_width, @node_height, 4}, fill: fill_color, stroke: {2, :yellow}, t: {x_pos, y_pos}, id: all_id),
+       text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + @node_height - 10}, id: all_id)] end)
+      |> List.flatten
+    {node_specs ++ connection_specs, all_id}
   end
 
   def get_node_connection_points(connections, from_or_to) do
