@@ -56,7 +56,8 @@ defmodule ModsynthGui.Scene.Home do
           :load_button}, id: :dropdown, t: {200, @after_nav})])
       |> Nav.add_to_graph(__MODULE__)
 
-    {:ok, %State{graph: graph, size: {width, height}, viewport: opts[:viewport]}, push: graph}
+      {graph, all_id} = do_graph_if_already_loaded(graph)
+    {:ok, %State{graph: graph, size: {width, height}, viewport: opts[:viewport], id: all_id}, push: graph}
   end
 
   ####################################################################
@@ -153,8 +154,18 @@ defmodule ModsynthGui.Scene.Home do
         Logger.error("filename not valid: #{reason}")
         state
       {nodes, connections, _} ->
+        :ets.insert(:modsynth_graphs, {:current, {nodes, connections, width, height, all_id}})
         {specs, all_id} = draw_graph(nodes, connections, width, height, all_id)
-        %{state | graph: {add_specs_to_graph(graph, specs), id: all_id}}
+        %{state | graph: add_specs_to_graph(graph, specs), id: all_id}
+    end
+  end
+
+  def do_graph_if_already_loaded(graph) do
+    case :ets.lookup(:modsynth_graphs, :current) do
+      [] -> {graph, nil}
+      [current: {nodes, connections, width, height, all_id}] ->
+        {specs, all_id} = draw_graph(nodes, connections, width, height, all_id)
+        {add_specs_to_graph(graph, specs), all_id}
     end
   end
 

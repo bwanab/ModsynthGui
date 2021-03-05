@@ -33,7 +33,7 @@ defmodule ModsynthGui.Component.Nav do
       |> text("Scene:", translate: {14, 35}, align: :right)
       |> dropdown(
         {[
-           {"Ciruit", ModsynthGui.Scene.Home},
+           {"Circuit", ModsynthGui.Scene.Home},
            {"Bus Monitor", ModsynthGui.Scene.BusMon}
          ], current_scene},
         id: :nav,

@@ -12,6 +12,7 @@ defmodule ModsynthGui do
       {Scenic, viewports: [main_viewport_config]}
     ]
 
+    :ets.new(:modsynth_graphs, [:named_table, :set, :public])
     Supervisor.start_link(children, strategy: :one_for_one)
   end
 end
