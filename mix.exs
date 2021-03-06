@@ -15,7 +15,7 @@ defmodule ModsynthGui.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      applications: [:sc_em, :scenic],
+      applications: [:sc_em, :scenic, :modsynth_rand],
       mod: {ModsynthGui, []},
       extra_applications: [:crypto]
     ]
@@ -27,6 +27,7 @@ defmodule ModsynthGui.MixProject do
       {:scenic, "~> 0.10"},
       {:scenic_driver_glfw, "~> 0.10", targets: :host},
       {:sc_em, path: "../sc_em"},
+      {:modsynth_rand, path: "../modsynth_rand"},
       {:jason, "~> 1.2"},
       {:music_prims, path: "../music_prims"},
       {:midi_in, path: "../midi_in"}
