@@ -14,11 +14,13 @@ defmodule ModsynthGui.Component.Nav do
   @height 60
 
   # --------------------------------------------------------
+  @impl true
   def verify(scene) when is_atom(scene), do: {:ok, scene}
   def verify({scene, _} = data) when is_atom(scene), do: {:ok, data}
   def verify(_), do: :invalid_data
 
   # ----------------------------------------------------------------------------
+  @impl true
   def init(current_scene, opts) do
     styles = opts[:styles] || %{}
 
@@ -50,6 +52,7 @@ defmodule ModsynthGui.Component.Nav do
 
 
   # ----------------------------------------------------------------------------
+  @impl true
   def filter_event({:value_changed, :nav, scene}, _, %{viewport: vp} = state)
       when is_atom(scene) do
     ViewPort.set_root(vp, {scene, nil})
@@ -57,6 +60,7 @@ defmodule ModsynthGui.Component.Nav do
   end
 
   # ----------------------------------------------------------------------------
+  @impl true
   def filter_event({:value_changed, :nav, scene}, _, %{viewport: vp} = state) do
     ViewPort.set_root(vp, scene)
     {:halt, state}

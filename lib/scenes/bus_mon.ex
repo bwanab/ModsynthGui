@@ -12,13 +12,8 @@ defmodule ModsynthGui.Scene.BusMon do
   alias ModsynthGui.Component.Nav
   alias ModsynthGui.EtsState
 
-  import Scenic.Primitives
-  import Scenic.Components
-
   @text_size 24
-  @node_height 100
-  @node_width 120
-  @after_nav 60
+
   # ============================================================================
   # setup
 
@@ -50,23 +45,16 @@ defmodule ModsynthGui.Scene.BusMon do
   def do_mon_if_already_loaded(graph) do
     case :ets.lookup(:modsynth_graphs, :current) do
       [] -> {graph, nil}
-      [current: %EtsState{nodes: nodes, connections: connections, width: width,
-                           height: height, all_id: all_id, rand_pid: pid}] ->
-        specs = draw_monitor(nodes, connections, width, height, all_id)
-        add_specs_to_graph(graph, specs)
+      [current: %EtsState{nodes: nodes, connections: connections}] ->
+        {columns, rows} = monitor_data(nodes, connections)
+        Scenic.Table.Components.table(graph, columns, rows, t: {10, 10})
     end
   end
 
-  def draw_monitor(nodes, connections, width, height, all_id) do
-    Enum.map(Enum.with_index(connections), fn {%Connection{bus_id: bus_id, desc: desc, from_node_param: from_node, to_node_param: to_node}, i} ->
-      # Logger.info("bus_id: #{bus_id}, desc: #{desc} from_param: #{from_node.param_name}, to_param: #{to_node.param_name}")
-      w = 10
-      h = 100 + (i * 30)
-      [
-        text_spec("#{bus_id}", fill: :white, t: {w, h}),
-        text_spec(desc <> ": " <> from_node.param_name <> " -> " <> to_node.param_name, fill: :white, t: {w + 100, h})
-      ]
-      end
-    ) |> List.flatten
+  def monitor_data(nodes, connections) do
+    {["bus id", "param spec"],
+    Enum.map(connections, fn %Connection{bus_id: bus_id, desc: desc, from_node_param: from_node, to_node_param: to_node} ->
+      ["#{bus_id}", desc <> ": " <> from_node.param_name <> " -> " <> to_node.param_name]
+    end )}
   end
 end

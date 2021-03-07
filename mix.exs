@@ -17,7 +17,7 @@ defmodule ModsynthGui.MixProject do
     [
       applications: [:sc_em, :scenic, :modsynth_rand],
       mod: {ModsynthGui, []},
-      extra_applications: [:crypto]
+      extra_applications: [:crypto, :scenic_table]
     ]
   end
 
@@ -25,6 +25,7 @@ defmodule ModsynthGui.MixProject do
   defp deps do
     [
       {:scenic, "~> 0.10"},
+      {:scenic_table, path: "../scenic_table"},
       {:scenic_driver_glfw, "~> 0.10", targets: :host},
       {:sc_em, path: "../sc_em"},
       {:modsynth_rand, path: "../modsynth_rand"},
