@@ -1,20 +1,11 @@
 defmodule ModsynthGui.State do
   defstruct  graph: nil,
     viewport: nil,
-    size: {1,1},
-    id: nil,
-    filename: "",
-    rand_pid: nil,
-    connections: nil
-
+    ets_state: nil
 
   @type t :: %__MODULE__{graph: Scenic.Graph,
                          viewport: Scenic.ViewPort,
-                         size: tuple,
-                         id: atom,
-                         filename: String.t,
-                         rand_pid: reference,
-                         connections: list
+                         ets_state: ModsynthGui.EtsState
   }
 end
 
@@ -46,14 +37,14 @@ defmodule ModsynthGui.Scene.Home do
   def init(_, opts) do
     styles = opts[:styles] || %{}
     {:ok, %ViewPort.Status{size: {width, height}}} = ViewPort.info(opts[:viewport])
-    {ets_state, filename} = case :ets.lookup(:modsynth_graphs, :current) do
-                              [] -> {[], ""}
-                              [current: ets_state] -> {[current: ets_state], ets_state.filename}
-                            end
-    {graph, all_id, _pid} =
+    ets_state = case :ets.lookup(:modsynth_graphs, :current) do
+                  [] -> %EtsState{width: width, height: height, filename: "fat-saw-reverb"}
+                  [current: ets_state] -> ets_state
+                end
+    {graph, all_id} =
       Graph.build(styles: styles, font_size: @text_size, clear_color: :dark_slate_grey)
       |> add_specs_to_graph([
-      text_field_spec(filename, id: :filename_id, width: 200, hint: "Enter filename", filter: :all, t: {10, @after_nav}),
+      text_field_spec(ets_state.filename, id: :filename_id, width: 200, hint: "Enter filename", filter: :all, t: {10, @after_nav}),
       dropdown_spec({
         [{"load", :load_button},
         {"clear", :clear_button},
@@ -64,7 +55,7 @@ defmodule ModsynthGui.Scene.Home do
       |> Nav.add_to_graph(__MODULE__)
       |> do_graph_if_already_loaded(ets_state)
 
-    {:ok, %State{graph: graph, size: {width, height}, viewport: opts[:viewport], id: all_id}, push: graph}
+    {:ok, %State{graph: graph, viewport: opts[:viewport], ets_state: %{ets_state | all_id: all_id}}, push: graph}
   end
 
   ####################################################################
@@ -72,33 +63,35 @@ defmodule ModsynthGui.Scene.Home do
   ####################################################################
 
 
-  def filter_event({:value_changed, :filename_id, value} = event, _context, state) do
-    {:cont, event, %{state | filename: value}, push: state.graph}
+  def filter_event({:value_changed, :filename_id, value} = event, _context, %State{ets_state: ets_state} = state) do
+    {:cont, event, %{state | ets_state: %{ets_state | filename: value}}, push: state.graph}
   end
 
-  def filter_event({:value_changed, :dropdown, id} = event, _context, state) do
+  def filter_event({:value_changed, :dropdown, id} = event, _context, %State{ets_state: ets_state} = state) do
     state = case id do
               :load_button -> do_graph(state)
               :clear_button ->
-                if state.id != nil do
+                if state.ets_state.all_id != nil do
                   Logger.info("delete old graph")
-                  %{state | graph: Graph.delete(state.graph, state.id)}
+                  %{state | graph: Graph.delete(state.graph, state.ets_state.all_id)}
                 else
                   state
                 end
               :rand_button ->
-                filename = Path.join("../sc_em/examples", state.filename <> ".json")
+                filename = Path.join("../sc_em/examples", state.ets_state.filename <> ".json")
                 Logger.info("filename = #{filename}")
-                {pid, _, connections} = Modsynth.Rand.play(filename)
-                Logger.info("play pid = #{inspect(pid)}")
-                %{state | connections: connections, rand_pid: pid}
+                {_, _, connections} = Modsynth.Rand.play(filename)
+                ets_state = %{ets_state | connections: connections}
+                :ets.insert(:modsynth_graphs, {:current, ets_state})
+                %{state | ets_state: ets_state}
               :play_button ->
-                filename = Path.join("../sc_em/examples", state.filename <> ".json")
+                filename = Path.join("../sc_em/examples", state.ets_state.filename <> ".json")
                 {_, connections} = Modsynth.play(filename)
-                %{state | connections: connections}
+                ets_state = %{ets_state | connections: connections}
+                :ets.insert(:modsynth_graphs, {:current, ets_state})
+                %{state | ets_state: ets_state}
               :stop_button ->
-                Logger.info("play pid = #{inspect(state.rand_pid)}")
-                Modsynth.Rand.stop_playing(state.rand_pid)
+                Modsynth.Rand.stop_playing()
                 state
             end
     {:cont, event, state, push: state.graph}
@@ -156,7 +149,7 @@ defmodule ModsynthGui.Scene.Home do
     end
   end
 
-  def do_graph(%State{graph: graph, size: {width, height}, filename: name, rand_pid: pid} = state) do
+  def do_graph(%State{graph: graph, ets_state: %{width: width, height: height, filename: name}} = state) do
     all_id = String.to_atom(name)
     filename = Path.join("../sc_em/examples", name <> ".json")
     case Modsynth.look(filename) do
@@ -164,25 +157,26 @@ defmodule ModsynthGui.Scene.Home do
         Logger.error("filename not valid: #{reason}")
         state
       {nodes, connections, _} ->
-        :ets.insert(:modsynth_graphs, {:current, %EtsState{nodes: nodes, connections: connections, width: width,
-                                                           height: height, all_id: all_id, rand_pid: pid,
-                                                           filename: name}})
-        {specs, all_id, pid} = draw_graph(nodes, connections, width, height, all_id, pid)
-        %{state | graph: add_specs_to_graph(graph, specs), id: all_id, rand_pid: pid}
+        ets_state = %EtsState{nodes: nodes, connections: connections, width: width,
+                                                           height: height, all_id: all_id,
+                                                           filename: name}
+        :ets.insert(:modsynth_graphs, {:current, ets_state})
+        {specs, all_id} = draw_graph(nodes, connections, width, height, all_id)
+        %{state | graph: add_specs_to_graph(graph, specs), ets_state: %{ets_state | all_id: all_id}}
     end
   end
 
   def do_graph_if_already_loaded(graph, ets_state) do
     case ets_state do
-      [] -> {graph, nil, nil}
-      [current: %EtsState{nodes: nodes, connections: connections, width: width,
-                           height: height, all_id: all_id, rand_pid: pid}] ->
-        {specs, all_id, pid} = draw_graph(nodes, connections, width, height, all_id, pid)
-        {add_specs_to_graph(graph, specs), all_id, pid}
+      %EtsState{connections: []} -> {graph, nil}
+      %EtsState{nodes: nodes, connections: connections, width: width,
+        height: height, all_id: all_id} ->
+        {specs, all_id} = draw_graph(nodes, connections, width, height, all_id)
+        {add_specs_to_graph(graph, specs), all_id}
     end
   end
 
-  def draw_graph(nodes, connections, width, height, all_id, pid) do
+  def draw_graph(nodes, connections, width, height, all_id) do
     node_pos_map = reorder_nodes(connections, Map.values(nodes), width, height)
     |> Enum.reduce(%{}, fn {id, {x, y}}, acc -> recompute_position_if_needed(acc, x, y, id) end)
     |> Enum.map(fn {{x, y}, id} -> {id, {x, y}} end)
@@ -198,7 +192,7 @@ defmodule ModsynthGui.Scene.Home do
       [rrect_spec({@node_width, @node_height, 4}, fill: fill_color, stroke: {2, :yellow}, t: {x_pos, y_pos}, id: all_id),
        text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + @node_height - 10}, id: all_id)] end)
       |> List.flatten
-    {node_specs ++ connection_specs, all_id, pid}
+    {node_specs ++ connection_specs, all_id}
   end
 
   def get_node_connection_points(connections, from_or_to) do

@@ -4,15 +4,13 @@ defmodule ModsynthGui.EtsState do
     width: 1000,
     height: 600,
     all_id: nil,
-    filename: "",
-    rand_pid: nil
+    filename: ""
 
   @type t :: %__MODULE__{nodes: map,
                          connections: list,
                          width: integer,
                          height: integer,
                          all_id: atom,
-                         filename: String.t,
-                         rand_pid: reference
+                         filename: String.t
   }
 end
