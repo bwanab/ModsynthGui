@@ -28,8 +28,8 @@ defmodule ModsynthGui.Scene.BusMon do
                 end
     graph =
       Graph.build(styles: styles, font_size: @text_size, clear_color: :dark_slate_grey)
-      |> Nav.add_to_graph(__MODULE__)
       |> do_mon_if_already_loaded(ets_state.nodes, ets_state.connections)
+      |> Nav.add_to_graph(__MODULE__)
 
     {:ok, %State{graph: graph, ets_state: ets_state, viewport: opts[:viewport]}, push: graph}
   end
@@ -53,13 +53,14 @@ defmodule ModsynthGui.Scene.BusMon do
 
   def do_mon_if_already_loaded(graph, nodes, connections) do
     {columns, rows} = monitor_data(nodes, connections)
-    Scenic.Table.Components.table(graph, columns, rows, t: {10, 0}, color: :light_grey)
+    Scenic.Table.Components.table(graph, columns, rows, t: {10, 50}, color: :light_grey, id: 999)
   end
 
   def monitor_data(nodes, connections) do
-    {["bus id", "param spec"],
-    Enum.map(connections, fn %Connection{bus_id: bus_id, desc: desc, from_node_param: from_node, to_node_param: to_node} ->
-      [bus_id, desc <> ": " <> from_node.param_name <> " -> " <> to_node.param_name]
+    {["param spec", "bus id", "val"],
+     Enum.map(connections, fn %Connection{bus_id: bus_id, desc: desc, from_node_param: from_node, to_node_param: to_node} ->
+       bus_val = if bus_id != 0 do ScClient.get_bus_val(bus_id) else 0 end
+       [desc <> ": " <> from_node.param_name <> " -> " <> to_node.param_name, bus_id, bus_val]
     end )}
   end
 end
