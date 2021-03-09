@@ -31,6 +31,7 @@ defmodule ModsynthGui.Scene.BusMon do
       |> do_mon_if_already_loaded(ets_state.nodes, ets_state.connections)
       |> Nav.add_to_graph(__MODULE__)
 
+    schedule_update()
     {:ok, %State{graph: graph, ets_state: ets_state, viewport: opts[:viewport]}, push: graph}
   end
 
@@ -43,9 +44,22 @@ defmodule ModsynthGui.Scene.BusMon do
     {:noreply, state}
   end
 
+  def handle_info(:update, %State{graph: graph, ets_state: ets_state, viewport: viewport} = state) do
+    graph =
+      Graph.delete(graph, 999)
+      |> do_mon_if_already_loaded(ets_state.nodes, ets_state.connections)
+
+    schedule_update()
+    {:noreply, %{state| graph: graph}, push: graph}
+  end
+
   ####################################################################
   # non-scenic processing follows
   ####################################################################
+
+  def schedule_update() do
+    Process.send_after(self(), :update, 1000)
+  end
 
   def do_mon_if_already_loaded(graph, nodes, connections) when is_nil(connections) do
     nil
