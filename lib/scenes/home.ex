@@ -1,11 +1,13 @@
 defmodule ModsynthGui.State do
   defstruct  graph: nil,
     viewport: nil,
-    ets_state: nil
+    ets_state: nil,
+    examples_dir: ""
 
   @type t :: %__MODULE__{graph: Scenic.Graph,
                          viewport: Scenic.ViewPort,
-                         ets_state: ModsynthGui.EtsState
+                         ets_state: ModsynthGui.EtsState,
+                         examples_dir: String.t
   }
 end
 
@@ -35,27 +37,32 @@ defmodule ModsynthGui.Scene.Home do
 
   # --------------------------------------------------------
   def init(_, opts) do
+    examples_dir = Application.get_env(:modsynth_gui, :examples_dir)
+    initial_circuit = Application.get_env(:modsynth_gui, :initial_circuit)
     styles = opts[:styles] || %{}
     {:ok, %ViewPort.Status{size: {width, height}}} = ViewPort.info(opts[:viewport])
     ets_state = case :ets.lookup(:modsynth_graphs, :current) do
-                  [] -> %EtsState{width: width, height: height, filename: "fat-saw-reverb"}
+                  [] -> %EtsState{width: width, height: height, filename: initial_circuit}
                   [current: ets_state] -> ets_state
                 end
+    circuits = File.ls!(examples_dir) |> Enum.filter(&(String.ends_with?(&1, ".json"))) |> Enum.sort
     {graph, all_id} =
       Graph.build(styles: styles, font_size: @text_size, clear_color: :dark_slate_grey)
       |> add_specs_to_graph([
-      text_field_spec(ets_state.filename, id: :filename_id, width: 200, hint: "Enter filename", filter: :all, t: {10, @after_nav}),
+      #text_field_spec(ets_state.filename, id: :filename_id, width: 200, hint: "Enter filename", filter: :all, t: {10, @after_nav}),
+      dropdown_spec({Enum.map(circuits, &({&1, &1})), "fat-saw-reverb.json"}, t: {100, @after_nav}, id: :circuit_dropdown),
       dropdown_spec({
         [{"load", :load_button},
         {"clear", :clear_button},
         {"rand", :rand_button},
         {"play", :play_button},
         {"stop", :stop_button}],
-          :load_button}, id: :dropdown, t: {200, @after_nav})])
+          :load_button}, id: :dropdown, t: {10, @after_nav})])
       |> Nav.add_to_graph(__MODULE__)
       |> do_graph_if_already_loaded(ets_state)
 
-    {:ok, %State{graph: graph, viewport: opts[:viewport], ets_state: %{ets_state | all_id: all_id}}, push: graph}
+      {:ok, %State{graph: graph, viewport: opts[:viewport], ets_state: %{ets_state | all_id: all_id}, examples_dir: examples_dir},
+       push: graph}
   end
 
   ####################################################################
@@ -67,7 +74,13 @@ defmodule ModsynthGui.Scene.Home do
     {:cont, event, %{state | ets_state: %{ets_state | filename: value}}, push: state.graph}
   end
 
-  def filter_event({:value_changed, :dropdown, id} = event, _context, %State{ets_state: ets_state} = state) do
+  def filter_event({:value_changed, :circuit_dropdown, value} = event, _context, %State{ets_state: ets_state} = state) do
+    Logger.info("setting filename #{value}")
+    {:cont, event, %{state | ets_state: %{ets_state | filename: value}}, push: state.graph}
+  end
+
+  def filter_event({:value_changed, :dropdown, id} = event, _context,
+    %State{ets_state: ets_state, examples_dir: examples_dir} = state) do
     state = case id do
               :load_button -> do_graph(state)
               :clear_button ->
@@ -78,14 +91,16 @@ defmodule ModsynthGui.Scene.Home do
                   state
                 end
               :rand_button ->
-                filename = Path.join("../sc_em/examples", state.ets_state.filename <> ".json")
+                filename = Path.join(examples_dir, state.ets_state.filename)
                 Logger.info("filename = #{filename}")
                 {_, _, connections} = Modsynth.Rand.play(filename)
                 ets_state = %{ets_state | connections: connections}
                 :ets.insert(:modsynth_graphs, {:current, ets_state})
-                %{state | ets_state: ets_state}
+                {graph, _all_id} = Graph.delete(state.graph, ets_state.all_id)
+                |> do_graph_if_already_loaded(ets_state)
+                %{state | ets_state: ets_state, graph: graph}
               :play_button ->
-                filename = Path.join("../sc_em/examples", state.ets_state.filename <> ".json")
+                filename = Path.join(examples_dir, state.ets_state.filename)
                 {_, connections} = Modsynth.play(filename)
                 ets_state = %{ets_state | connections: connections}
                 :ets.insert(:modsynth_graphs, {:current, ets_state})
@@ -149,9 +164,9 @@ defmodule ModsynthGui.Scene.Home do
     end
   end
 
-  def do_graph(%State{graph: graph, ets_state: %{width: width, height: height, filename: name}} = state) do
+  def do_graph(%State{graph: graph, ets_state: %{width: width, height: height, filename: name}, examples_dir: examples_dir} = state) do
     all_id = String.to_atom(name)
-    filename = Path.join("../sc_em/examples", name <> ".json")
+    filename = Path.join(examples_dir, name)
     case Modsynth.look(filename) do
       {:error, reason} ->
         Logger.error("filename not valid: #{reason}")
@@ -162,7 +177,13 @@ defmodule ModsynthGui.Scene.Home do
                                                            filename: name}
         :ets.insert(:modsynth_graphs, {:current, ets_state})
         {specs, all_id} = draw_graph(nodes, connections, width, height, all_id)
-        %{state | graph: add_specs_to_graph(graph, specs), ets_state: %{ets_state | all_id: all_id}}
+        graph = if state.ets_state.all_id != 0 do
+          Graph.delete(graph, state.ets_state.all_id)
+        else
+          graph
+        end
+        |> add_specs_to_graph(specs)
+        %{state | graph: graph, ets_state: %{ets_state | all_id: all_id}}
     end
   end
 
@@ -190,6 +211,7 @@ defmodule ModsynthGui.Scene.Home do
                      _ -> :grey
                    end
       [rrect_spec({@node_width, @node_height, 4}, fill: fill_color, stroke: {2, :yellow}, t: {x_pos, y_pos}, id: all_id),
+       text_spec("#{node.sc_id}", t: {x_pos + 10, y_pos + @node_height - round(@node_height / 2)}, id: all_id),
        text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + @node_height - 10}, id: all_id)] end)
       |> List.flatten
     {node_specs ++ connection_specs, all_id}

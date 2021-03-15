@@ -7,8 +7,6 @@ defmodule ModsynthGui.Component.Nav do
   import Scenic.Primitives, only: [{:text, 3}, {:rect, 3}]
   import Scenic.Components, only: [{:dropdown, 3}]
 
-  alias ModsynthGui.State
-
   # import IEx
 
   @height 60
