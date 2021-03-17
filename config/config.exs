@@ -5,7 +5,7 @@ use Mix.Config
 # Configure the main viewport for the Scenic application
 config :modsynth_gui, :viewport, %{
   name: :main_viewport,
-  size: {1800, 800},
+  size: {1800, 1000},
   default_scene: {ModsynthGui.Scene.Home, nil},
   drivers: [
     %{

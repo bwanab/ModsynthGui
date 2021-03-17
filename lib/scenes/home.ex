@@ -91,20 +91,9 @@ defmodule ModsynthGui.Scene.Home do
                   state
                 end
               :rand_button ->
-                filename = Path.join(examples_dir, state.ets_state.filename)
-                Logger.info("filename = #{filename}")
-                {_, _, connections} = Modsynth.Rand.play(filename)
-                ets_state = %{ets_state | connections: connections}
-                :ets.insert(:modsynth_graphs, {:current, ets_state})
-                {graph, _all_id} = Graph.delete(state.graph, ets_state.all_id)
-                |> do_graph_if_already_loaded(ets_state)
-                %{state | ets_state: ets_state, graph: graph}
+                play(&Modsynth.Rand.play/1, state)
               :play_button ->
-                filename = Path.join(examples_dir, state.ets_state.filename)
-                {_, connections} = Modsynth.play(filename)
-                ets_state = %{ets_state | connections: connections}
-                :ets.insert(:modsynth_graphs, {:current, ets_state})
-                %{state | ets_state: ets_state}
+                play(&Modsynth.play/1, state)
               :stop_button ->
                 Modsynth.Rand.stop_playing()
                 state
@@ -120,6 +109,17 @@ defmodule ModsynthGui.Scene.Home do
   ####################################################################
   # non-scenic processing follows
   ####################################################################
+
+  def play(play_fun, %State{ets_state: ets_state, examples_dir: examples_dir, graph: graph} = state) do
+    filename = Path.join(examples_dir, ets_state.filename)
+    {_, node_map, connections} = play_fun.(filename)
+    ets_state = %{ets_state | connections: connections, nodes: node_map}
+    :ets.insert(:modsynth_graphs, {:current, ets_state})
+    {graph, _all_id} = Graph.delete(graph, ets_state.all_id)
+    |> do_graph_if_already_loaded(ets_state)
+    {ets_state, graph}
+    %{state | ets_state: ets_state, graph: graph}
+  end
 
   def map_nodes_by_node_id(nodes) do
     Enum.map(nodes, fn node ->
@@ -189,9 +189,9 @@ defmodule ModsynthGui.Scene.Home do
 
   def do_graph_if_already_loaded(graph, ets_state) do
     case ets_state do
-      %EtsState{connections: []} -> {graph, nil}
-      %EtsState{nodes: nodes, connections: connections, width: width,
-        height: height, all_id: all_id} ->
+      %EtsState{connections: []} -> Logger.info("don't do anything"); {graph, nil}
+      %EtsState{nodes: nodes, connections: connections, width: width, height: height, all_id: all_id} ->
+        Logger.info("do something")
         {specs, all_id} = draw_graph(nodes, connections, width, height, all_id)
         {add_specs_to_graph(graph, specs), all_id}
     end
