@@ -29,7 +29,8 @@ defmodule ModsynthGui.Scene.Home do
   import Scenic.Components
 
   @text_size 24
-  @node_height 100
+  @node_height 110
+  @node_height_inc 40
   @node_width 120
   @after_nav 60
   # ============================================================================
@@ -75,17 +76,14 @@ defmodule ModsynthGui.Scene.Home do
   end
 
   def filter_event({:value_changed, :circuit_dropdown, value} = event, _context, %State{ets_state: ets_state} = state) do
-    Logger.info("setting filename #{value}")
     {:cont, event, %{state | ets_state: %{ets_state | filename: value}}, push: state.graph}
   end
 
-  def filter_event({:value_changed, :dropdown, id} = event, _context,
-    %State{ets_state: ets_state, examples_dir: examples_dir} = state) do
+  def filter_event({:value_changed, :dropdown, id} = event, _context, state) do
     state = case id do
               :load_button -> do_graph(state)
               :clear_button ->
                 if state.ets_state.all_id != nil do
-                  Logger.info("delete old graph")
                   %{state | graph: Graph.delete(state.graph, state.ets_state.all_id)}
                 else
                   state
@@ -146,7 +144,7 @@ defmodule ModsynthGui.Scene.Home do
     nodes = for c when c.to_node_param.node_id == node_id <- connections do c.from_node_param.node_id end
     len = length(nodes)
     [{node_id, {x_pos, y_pos}}]
-    ++ for {innode, index} <- Enum.with_index(nodes), do: reorder_nodes(connections, innode, x + 1, len - index, width, height)
+    ++ for {innode, index} <- Enum.with_index(Enum.reverse(nodes)), do: reorder_nodes(connections, innode, x + 1, len - index, width, height)
 
   end
 
@@ -173,8 +171,8 @@ defmodule ModsynthGui.Scene.Home do
         state
       {nodes, connections, _} ->
         ets_state = %EtsState{nodes: nodes, connections: connections, width: width,
-                                                           height: height, all_id: all_id,
-                                                           filename: name}
+                              height: height, all_id: all_id,
+                              filename: name}
         :ets.insert(:modsynth_graphs, {:current, ets_state})
         {specs, all_id} = draw_graph(nodes, connections, width, height, all_id)
         graph = if state.ets_state.all_id != 0 do
@@ -189,20 +187,21 @@ defmodule ModsynthGui.Scene.Home do
 
   def do_graph_if_already_loaded(graph, ets_state) do
     case ets_state do
-      %EtsState{connections: []} -> Logger.info("don't do anything"); {graph, nil}
+      %EtsState{connections: []} -> {graph, nil}
       %EtsState{nodes: nodes, connections: connections, width: width, height: height, all_id: all_id} ->
-        Logger.info("do something")
         {specs, all_id} = draw_graph(nodes, connections, width, height, all_id)
         {add_specs_to_graph(graph, specs), all_id}
     end
   end
 
   def draw_graph(nodes, connections, width, height, all_id) do
+    Logger.info("in draw_graph filename")
     node_pos_map = reorder_nodes(connections, Map.values(nodes), width, height)
     |> Enum.reduce(%{}, fn {id, {x, y}}, acc -> recompute_position_if_needed(acc, x, y, id) end)
     |> Enum.map(fn {{x, y}, id} -> {id, {x, y}} end)
     |> Enum.into(%{})
     connection_specs = get_connections(connections, node_pos_map, all_id) |> List.flatten
+    node_sizes = get_node_sizes(nodes, connections)
     node_specs = Enum.map(node_pos_map, fn {node_id, {x_pos, y_pos}} ->
       node = nodes[node_id]
       fill_color = case node.control do
@@ -210,9 +209,11 @@ defmodule ModsynthGui.Scene.Home do
                      :note -> :dark_orchid
                      _ -> :grey
                    end
-      [rrect_spec({@node_width, @node_height, 4}, fill: fill_color, stroke: {2, :yellow}, t: {x_pos, y_pos}, id: all_id),
-       text_spec("#{node.sc_id}", t: {x_pos + 10, y_pos + @node_height - round(@node_height / 2)}, id: all_id),
-       text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + @node_height - 10}, id: all_id)] end)
+      node_size = Map.get(node_sizes, node_id, 0)
+      node_height = @node_height + if node_size > 3 do @node_height_inc * (node_size - 3) else 0 end
+      [rrect_spec({@node_width, node_height, 4}, fill: fill_color, stroke: {2, :yellow}, t: {x_pos, y_pos}, id: all_id),
+       text_spec("#{node.sc_id}", t: {x_pos + 60, y_pos + 5 + node_height - round(node_height / 2)}, id: all_id),
+       text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + node_height - 30}, id: all_id)]   end)
       |> List.flatten
     {node_specs ++ connection_specs, all_id}
   end
@@ -226,6 +227,15 @@ defmodule ModsynthGui.Scene.Home do
                       end
         Map.put(acc, id, [param|Map.get(acc, id, [])])
       end)
+  end
+
+  def get_node_sizes(nodes, connections) do
+    from_points = get_node_connection_points(connections, :from)
+    to_points = get_node_connection_points(connections, :to)
+    Enum.map(Map.keys(nodes), fn id ->
+      {id, max(length(Map.get(from_points, id, [])), length(Map.get(to_points, id, [])))}
+    end)
+    |> Enum.into(%{})
   end
 
   def get_connections(connections, node_pos_map, all_id) do
