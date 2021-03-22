@@ -33,6 +33,7 @@ defmodule ModsynthGui.Scene.Home do
   @node_height_inc 40
   @node_width 120
   @after_nav 60
+  @below_circuits 100
   # ============================================================================
   # setup
 
@@ -79,6 +80,18 @@ defmodule ModsynthGui.Scene.Home do
     {:cont, event, %{state | ets_state: %{ets_state | filename: value}}, push: state.graph}
   end
 
+  def filter_event({:value_changed, :control_dropdown, value} = event, _context, %State{ets_state: ets_state} = state) do
+
+    control_val = ScClient.get_control_val(value, "in")
+    Logger.info("control val for #{value} = #{control_val}")
+    ets_state = %{ets_state |
+                  current_control: value,
+                  current_control_val: control_val}
+    {graph, all_id} =
+      do_graph_if_already_loaded(state.graph, ets_state)
+    {:cont, event, %{state | ets_state: ets_state}, push: graph}
+  end
+
   def filter_event({:value_changed, :dropdown, id} = event, _context, state) do
     state = case id do
               :load_button -> do_graph(state)
@@ -110,8 +123,8 @@ defmodule ModsynthGui.Scene.Home do
 
   def play(play_fun, %State{ets_state: ets_state, examples_dir: examples_dir, graph: graph} = state) do
     filename = Path.join(examples_dir, ets_state.filename)
-    {_, node_map, connections} = play_fun.(filename)
-    ets_state = %{ets_state | connections: connections, nodes: node_map}
+    {controls, node_map, connections} = play_fun.(filename)
+    ets_state = %{ets_state | connections: connections, nodes: node_map, controls: controls}
     :ets.insert(:modsynth_graphs, {:current, ets_state})
     {graph, _all_id} = Graph.delete(graph, ets_state.all_id)
     |> do_graph_if_already_loaded(ets_state)
@@ -174,7 +187,7 @@ defmodule ModsynthGui.Scene.Home do
                               height: height, all_id: all_id,
                               filename: name}
         :ets.insert(:modsynth_graphs, {:current, ets_state})
-        {specs, all_id} = draw_graph(nodes, connections, width, height, all_id)
+        {specs, all_id} = draw_graph(ets_state)
         graph = if state.ets_state.all_id != 0 do
           Graph.delete(graph, state.ets_state.all_id)
         else
@@ -188,14 +201,36 @@ defmodule ModsynthGui.Scene.Home do
   def do_graph_if_already_loaded(graph, ets_state) do
     case ets_state do
       %EtsState{connections: []} -> {graph, nil}
-      %EtsState{nodes: nodes, connections: connections, width: width, height: height, all_id: all_id} ->
-        {specs, all_id} = draw_graph(nodes, connections, width, height, all_id)
+      _ ->
+        {specs, all_id} = draw_graph(ets_state)
         {add_specs_to_graph(graph, specs), all_id}
     end
   end
 
-  def draw_graph(nodes, connections, width, height, all_id) do
-    Logger.info("in draw_graph filename")
+  def draw_graph(%EtsState{nodes: nodes,
+                           connections: connections,
+                           controls: controls,
+                           current_control: current_control,
+                           current_control_val: current_control_val,
+                           width: width,
+                           height: height,
+                           all_id: all_id}) do
+    Logger.info("draw_graph: current_control_val: #{current_control_val}")
+    control_data = Enum.map(controls, fn {name, id, _, to, _} ->
+      {List.last(String.split(name, "_")) <> ":" <> to, id}
+    end)
+    dd = if length(control_data) > 0 do
+      current_control_disp = if current_control != 0 do
+        current_control else elem(Enum.at(control_data, 0),1) end
+      Logger.info("sent: #{inspect({control_data, current_control_disp})}")
+      [dropdown_spec({control_data, current_control_disp},
+          t: {10, @below_circuits}, id: :control_dropdown),
+       text_field_spec("#{Float.round(current_control_val, 3)}", id: :control_val_id, t: {220, @below_circuits})
+      ]
+    else
+      []
+    end
+
     node_pos_map = reorder_nodes(connections, Map.values(nodes), width, height)
     |> Enum.reduce(%{}, fn {id, {x, y}}, acc -> recompute_position_if_needed(acc, x, y, id) end)
     |> Enum.map(fn {{x, y}, id} -> {id, {x, y}} end)
@@ -215,7 +250,8 @@ defmodule ModsynthGui.Scene.Home do
        text_spec("#{node.sc_id}", t: {x_pos + 60, y_pos + 5 + node_height - round(node_height / 2)}, id: all_id),
        text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + node_height - 30}, id: all_id)]   end)
       |> List.flatten
-    {node_specs ++ connection_specs, all_id}
+    rv = {dd ++ node_specs ++ connection_specs, all_id}
+    rv
   end
 
   def get_node_connection_points(connections, from_or_to) do
