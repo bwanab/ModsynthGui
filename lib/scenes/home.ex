@@ -38,6 +38,7 @@ defmodule ModsynthGui.Scene.Home do
   # setup
 
   # --------------------------------------------------------
+  @impl true
   def init(_, opts) do
     examples_dir = Application.get_env(:modsynth_gui, :examples_dir)
     initial_circuit = Application.get_env(:modsynth_gui, :initial_circuit)
@@ -71,7 +72,7 @@ defmodule ModsynthGui.Scene.Home do
   # scenic callbacks
   ####################################################################
 
-
+  @impl true
   def filter_event({:value_changed, :filename_id, value} = event, _context, %State{ets_state: ets_state} = state) do
     {:cont, event, %{state | ets_state: %{ets_state | filename: value}}, push: state.graph}
   end
@@ -81,14 +82,19 @@ defmodule ModsynthGui.Scene.Home do
   end
 
   def filter_event({:value_changed, :control_dropdown, value} = event, _context, %State{ets_state: ets_state} = state) do
-
     control_val = ScClient.get_control_val(value, "in")
+    # Logger.info("get_control_val #{value} #{control_val}")
     ets_state = %{ets_state |
                   current_control: value,
-                  current_control_val: control_val}
-    {graph, all_id} =
-      do_graph_if_already_loaded(state.graph, ets_state)
+                  current_control_val: control_val
+                 }
+    graph = Graph.modify(state.graph, :dummy_id, &text_field(&1, "#{Float.round(control_val, 3)}"))
     {:cont, event, %{state | ets_state: ets_state}, push: graph}
+  end
+
+  def filter_event({:value_changed, :control_val_id, value} = event, _context, %State{ets_state: ets_state} = state) do
+    ets_state = %{ets_state | new_control_val: value}
+    {:cont, event, %{state | ets_state: ets_state}, push: state.graph}
   end
 
   def filter_event({:value_changed, :dropdown, id} = event, _context, state) do
@@ -111,9 +117,31 @@ defmodule ModsynthGui.Scene.Home do
     {:cont, event, state, push: state.graph}
   end
 
+  def filter_event({:click, :control_val_button_id} = event, _context, %State{ets_state: ets_state} = state) do
+    %EtsState{new_control_val: new_control_val, current_control: current_control} = ets_state
+    {val, _} = Float.parse(new_control_val)
+    ScClient.set_control(current_control, "in", val)
+    ets_state = %{ets_state | current_control_val: val}
+    graph = Graph.modify(state.graph, :dummy_id, &text_field(&1, "#{Float.round(val, 3)}"))
+    # Logger.info("set_control  #{current_control} #{val}")
+    {:cont, event, %{state | ets_state: ets_state}, push: graph}
+  end
+
+  @impl true
   def handle_input(_event, _context, state) do
     # Logger.info("Received value change: #{inspect(event)}")
     {:noreply, state}
+  end
+
+  @impl true
+  def handle_call(:spew, _from, %State{ets_state: ets_state} = status) do
+    %EtsState{connections: connections, nodes: node_map, controls: controls} = ets_state
+
+    {:reply, {controls, node_map, connections}, status}
+  end
+
+  def spew() do
+    GenServer.call(__MODULE__, :spew)
   end
 
   ####################################################################
@@ -211,18 +239,22 @@ defmodule ModsynthGui.Scene.Home do
                            controls: controls,
                            current_control: current_control,
                            current_control_val: current_control_val,
+                           new_control_val: new_control_val,
                            width: width,
                            height: height,
                            all_id: all_id}) do
     control_data = Enum.map(controls, fn {name, id, _, to, _} ->
       {List.last(String.split(name, "_")) <> ":" <> to, id}
     end)
+
     dd = if length(control_data) > 0 do
       current_control_disp = if current_control != 0 do
         current_control else elem(Enum.at(control_data, 0),1) end
       [dropdown_spec({control_data, current_control_disp},
           t: {10, @below_circuits}, id: :control_dropdown),
-       text_field_spec("#{Float.round(current_control_val, 3)}", id: :control_val_id, t: {220, @below_circuits})
+       text_field_spec("#{Float.round(current_control_val, 3)}", id: :dummy_id, t: {220, @below_circuits}, width: 100),
+       text_field_spec(new_control_val, id: :control_val_id, t: {320, @below_circuits}, width: 100),
+       button_spec("Set", id: :control_val_button_id, t: {420, @below_circuits})
       ]
     else
       []
