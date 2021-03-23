@@ -83,7 +83,6 @@ defmodule ModsynthGui.Scene.Home do
   def filter_event({:value_changed, :control_dropdown, value} = event, _context, %State{ets_state: ets_state} = state) do
 
     control_val = ScClient.get_control_val(value, "in")
-    Logger.info("control val for #{value} = #{control_val}")
     ets_state = %{ets_state |
                   current_control: value,
                   current_control_val: control_val}
@@ -215,14 +214,12 @@ defmodule ModsynthGui.Scene.Home do
                            width: width,
                            height: height,
                            all_id: all_id}) do
-    Logger.info("draw_graph: current_control_val: #{current_control_val}")
     control_data = Enum.map(controls, fn {name, id, _, to, _} ->
       {List.last(String.split(name, "_")) <> ":" <> to, id}
     end)
     dd = if length(control_data) > 0 do
       current_control_disp = if current_control != 0 do
         current_control else elem(Enum.at(control_data, 0),1) end
-      Logger.info("sent: #{inspect({control_data, current_control_disp})}")
       [dropdown_spec({control_data, current_control_disp},
           t: {10, @below_circuits}, id: :control_dropdown),
        text_field_spec("#{Float.round(current_control_val, 3)}", id: :control_val_id, t: {220, @below_circuits})
@@ -239,19 +236,24 @@ defmodule ModsynthGui.Scene.Home do
     node_sizes = get_node_sizes(nodes, connections)
     node_specs = Enum.map(node_pos_map, fn {node_id, {x_pos, y_pos}} ->
       node = nodes[node_id]
-      fill_color = case node.control do
-                     :gain -> :golden_rod
-                     :note -> :dark_orchid
-                     _ -> :grey
-                   end
       node_size = Map.get(node_sizes, node_id, 0)
-      node_height = @node_height + if node_size > 3 do @node_height_inc * (node_size - 3) else 0 end
-      [rrect_spec({@node_width, node_height, 4}, fill: fill_color, stroke: {2, :yellow}, t: {x_pos, y_pos}, id: all_id),
-       text_spec("#{node.sc_id}", t: {x_pos + 60, y_pos + 5 + node_height - round(node_height / 2)}, id: all_id),
-       text_spec(node.name <> ":" <> Integer.to_string(node_id), t: {x_pos + 10, y_pos + node_height - 30}, id: all_id)]   end)
+      build_node(node, node_size, all_id, x_pos, y_pos) end)
       |> List.flatten
-    rv = {dd ++ node_specs ++ connection_specs, all_id}
-    rv
+    {dd ++ node_specs ++ connection_specs, all_id}
+  end
+
+  def build_node(node, node_size, all_id, x_pos, y_pos) do
+    fill_color = case node.control do
+                   :gain -> :golden_rod
+                   :note -> :dark_orchid
+                   _ -> :grey
+                 end
+      node_height = @node_height + if node_size > 3 do @node_height_inc * (node_size - 3) else 0 end
+      group_spec(
+        [rrect_spec({@node_width, node_height, 4}, fill: fill_color, stroke: {2, :yellow}, t: {0, 0}),
+         text_spec("#{node.sc_id}", t: {60, 5 + node_height - round(node_height / 2)}),
+         text_spec(node.name <> ":" <> Integer.to_string(node.node_id), t: {10, node_height - 30})],
+        t: {x_pos, y_pos}, id: all_id)
   end
 
   def get_node_connection_points(connections, from_or_to) do
