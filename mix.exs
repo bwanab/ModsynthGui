@@ -15,7 +15,6 @@ defmodule ModsynthGui.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      applications: [:sc_em, :scenic],
       mod: {ModsynthGui, []},
       extra_applications: [:crypto]
     ]
@@ -24,12 +23,10 @@ defmodule ModsynthGui.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:scenic, "~> 0.10"},
-      {:scenic_driver_glfw, "~> 0.10", targets: :host},
+      {:scenic, "~> 0.11.0"},
+      {:scenic_driver_local, "~> 0.11.0"},
       {:sc_em, path: "../sc_em"},
-      {:jason, "~> 1.2"},
-      {:music_prims, path: "../music_prims"},
-      {:midi_in, path: "../midi_in"}
+      {:jason, "~> 1.2"}
     ]
   end
 end

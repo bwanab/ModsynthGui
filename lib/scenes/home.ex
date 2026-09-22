@@ -20,7 +20,7 @@ defmodule ModsynthGui.Scene.Home do
   require Modsynth.Connection
 
   alias Scenic.Graph
-  alias Scenic.ViewPort
+  #alias Scenic.ViewPort
   alias ModsynthGui.State
 
   import Scenic.Primitives
@@ -33,9 +33,9 @@ defmodule ModsynthGui.Scene.Home do
   # setup
 
   # --------------------------------------------------------
-  def init(_, opts) do
+  def init(scene, _params, opts) do
+    IO.inspect(scene, label: "scene in init")
     styles = opts[:styles] || %{}
-    {:ok, %ViewPort.Status{size: {width, height}}} = ViewPort.info(opts[:viewport])
     graph =
       Graph.build(styles: styles, font_size: @text_size, clear_color: :dark_slate_grey)
       |> add_specs_to_graph([
@@ -46,8 +46,11 @@ defmodule ModsynthGui.Scene.Home do
       button_spec("play", id: :play_button, t: {410, 10}),
       button_spec("stop", id: :stop_button, t: {470, 10}),
       ])
+    new_scene = scene
+        |> assign(graph: graph)
+        |> push_graph(graph)
 
-    {:ok, %State{graph: graph, size: {width, height}}, push: graph}
+    {:ok, new_scene}
   end
 
   ####################################################################
@@ -70,15 +73,15 @@ defmodule ModsynthGui.Scene.Home do
                   state
                 end
               :rand_button ->
-                filename = Path.join("../sc_em/examples", state.filename <> ".json")
-                Modsynth.Rand.play(filename)
+                _filename = Path.join("../sc_em/examples", state.filename <> ".json")
+                #Modsynth.Rand.play(filename)
                 state
               :play_button ->
                 filename = Path.join("../sc_em/examples", state.filename <> ".json")
                 Modsynth.play(filename)
                 state
               :stop_button ->
-                Modsynth.Rand.stop_playing()
+                #Modsynth.Rand.stop_playing()
                 state
             end
     {:cont, {:clicked, id}, state, push: state.graph}
